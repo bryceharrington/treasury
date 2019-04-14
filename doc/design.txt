@@ -1,0 +1,14 @@
+Treasury API
+============
+
+Method  URI
+GET     http://[hostname]/treasury/api/v1.0/budget         Retrieve budgets
+GET     http://[hostname]/treasury/api/v1.0/budget/[year]  Retrieve budgets
+
+cashflow
+donations
+expenses
+income
+program
+assets
+balances

@@ -6,8 +6,10 @@ financials.
 
 # Setting up virtual environment
 
+```
 $ sudo apt-get install virtualenv
 $ cd treasury
 $ virtualenv flask
 $ flask/bin/pip install flask
 $ flask/bin/pip install flask_restful
+```

@@ -1,11 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-from distutils.core import setup
-from distutils.command.install_data import install_data
+from setuptools import setup
 
 import glob
-import os
-import re
 
 setup(
     name             = 'treasury',
@@ -14,12 +11,22 @@ setup(
     author           = 'Bryce Harrington',
     author_email     = 'bryce@bryceharrington.org',
     description      = 'Extracts and presents financial data from Ledger',
+    long_description = open('README.md', 'rt').read()
     platforms        = ['any'],
-    requires         = ['argparse', 'ruamel', 'pprint'],
+    requires         = ['argparse',
+                        'ruamel',
+                        'pprint',
+
+                        'flask',
+                        'flask_restful'
+    ],
+    setup_requires   = ['pytest-runner'],
     packages         = [
         'treasury'
         ],
     package_data = { },
     data_files = [ ],
     scripts = glob.glob('scripts/*'),
+
+    tests_require = ['pytest'],
 )
