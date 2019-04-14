@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import re
 import ledger
 
 DONATION_RANGES = [
@@ -17,13 +18,16 @@ DONATION_RANGES = [
 
 cheers = []
 
+data_path = None
+
 def get_memo(note):
+    """Extract the textual memo from a ledger post"""
     if note is None:
         return None
     if "Memo:" not in note:
         return None
 
-    note_lines = post.note.split("\n")
+    note_lines = note.split("\n")
     for line in note_lines:
         if "Memo:" in line:
             memo = line.split("Memo:")[-1]
@@ -33,6 +37,7 @@ def get_memo(note):
     return None
 
 def get_donation_range(amount):
+    """Convert the exact dollar amount to a general range."""
     if amount < DONATION_RANGES[0]:
         return None
     for i in range(1, len(DONATION_RANGES)):
@@ -40,30 +45,96 @@ def get_donation_range(amount):
             return "%d-%d USD" %((DONATION_RANGES[i-1], DONATION_RANGES[i]))
     return ">%d (%d)" %(DONATION_RANGES[i], amount)
 
+def get_filters():
+    """Returns the list of filters, loading them from file if needed."""
+    try:
+        # Attempt to use already loaded filter rules
+        assert(get_filters._filters is not None)
+        return get_filters._filters
+    except:
+        # Load filter rules
+        get_filters._filters = [
+            r'\$',
+            r'@',
+            r'\?'
+        ]
+
+        filenames = [
+            'en_profane_words.txt',
+            'scammy.txt'
+        ]
+        for filename in filenames:
+            path = os.path.join(data_path, filename)
+            with open(path, 'r') as f:
+                for line in f:
+                    get_filters._filters.append(line)
+
+    return get_filters._filters
+
+def exclude(value):
+    """Looks up if the given string should be filtered out"""
+    for exclude in get_filters():
+        if re.search(exclude, value, re.I):
+            return True
+    return False
+
 if __name__ == "__main__":
+    import os
     import sys
     import json
+    import argparse
+    import yaml
 
-    if len(sys.argv) < 2:
-        sys.stderr.write(("usage: extract_cheers <ledger_file>\n"))
+    # Option handling
+    parser = argparse.ArgumentParser(description='Extract cheers')
+    parser.add_argument('-C', '--config',
+                        type=str, dest='config_filename', action='store',
+                        default='~/.config/treasury/cheers.yml',
+                        help='Location of config file')
+    parser.add_argument('-D', '--data-path',
+                        type=str, dest='data_path', action='store',
+                        default='~/.local/share/treasury/',
+                        help='Location of exclusion filter data files')
+    parser.add_argument('ledger_filename', type=str, nargs=1,
+                        help="Ledger filename")
+    args = parser.parse_args()
+
+    # Configuration
+    config_path = os.path.expanduser(args.config_filename)
+    with open(config_path) as f:
+        config = yaml.safe_load_all(f)
+
+    data_path = os.path.expanduser(args.data_path)
+    if not os.path.exists(data_path):
+        sys.stderr.write("error: Data path {} inaccessible.\n".format(args.data_path))
+        parser.print_help()
         sys.exit(1)
-    ledger_file = sys.argv[1]
-    session = ledger.read_journal(ledger_file)
 
+    # Read ledger journal
+    session = ledger.read_journal(args.ledger_filename[0])
+
+    # Process ledger entries
     i = 0
     for post in session.query("register Donations"):
         memo = get_memo(post.note)
         amount = get_donation_range(post.amount.negated())
         if memo is None or amount is None:
             continue
+
+        # Check if the memo matches our filter rules for exclusion
+        if exclude(memo):
+            sys.stderr.write("Excluding: %s\n" %(memo))
+            continue
+
         cheer = {
             'id': i,
             'amount': amount,
-            'memo': get_memo(post.note),
+            'memo': memo,
             'month': post.date.month,
             'year': post.date.year
         }
         cheers.append(cheer)
         i += 1
 
+    # Generate the JSON output
     print(json.dumps(cheers, indent=4, sort_keys=True, ensure_ascii=False))
